@@ -42,6 +42,13 @@ func (m *LimitedTaskQueue) Push(task GoTask, waitDuration time.Duration) bool {
 			return false
 		case m.sem <- 1:
 		}
+	} else if waitDuration == 0 {
+		select {
+		case m.sem <- 1:
+		default:
+			return false
+		}
+
 	} else {
 		m.sem <- 1
 	}
@@ -58,11 +65,17 @@ func (m *LimitedTaskQueue) Push(task GoTask, waitDuration time.Duration) bool {
 }
 
 func (m *LimitedTaskQueue) Pull(waitDuration time.Duration) GoTask {
-	if waitDuration >= 0 {
+	if waitDuration > 0 {
 		select {
 		case <-time.After(waitDuration):
 			return nil
 		case <-m.sem:
+		}
+	} else if waitDuration == 0 {
+		select {
+		case <- m.sem:
+		default:
+			return nil
 		}
 	} else {
 		<-m.sem
